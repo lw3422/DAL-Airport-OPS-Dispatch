@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dallas Love Field - Airport Operations Dispatch Portal</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #38bdf8;
+            --status-avail: #22c55e;
+            --status-busy: #ef4444;
+            --status-inspect: #eab308;
+            --alert-aircraft: #dc2626;
+            --alert-medical: #ea580c;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--bg-card);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+
+        h1 { font-size: 1.4rem; letter-spacing: -0.5px; }
+        .logo-span { color: var(--accent-blue); }
+        .clocks-container { display: flex; gap: 20px; font-family: monospace; font-size: 1.1rem; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.3fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .left-column, .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+            font-weight: bold;
+        }
+
+        /* Tables & Inputs */
+        .table-container { overflow-y: auto; flex: 1; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 10px 8px; border-bottom: 1px solid #334155; font-size: 0.85rem; }
+        th { color: var(--text-muted); font-weight: 600; }
+
+        .badge { padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+        .badge-saoo { background: #6366f1; color: white; }
+        .badge-aoo { background: #0ea5e9; color: white; }
+
+        select, input, button {
+            background: #1e293b;
+            color: white;
+            border: 1px solid #475569;
+            padding: 6px 10px;
+            border-radius: 4px;
+            outline: none;
+        }
+        select:focus, input:focus { border-color: var(--accent-blue); }
+
+        /* Action Buttons */
+        .btn-add-officer { background: #4f46e5; color: white; border: none; font-weight: bold; cursor: pointer; padding: 8px 14px; }
+        .btn-save-logs { background: #059669; color: white; border: none; font-weight: bold; cursor: pointer; padding: 8px 14px; }
+        .task-form { display: flex; gap: 10px; margin-bottom: 15px; }
+        .task-form input { flex: 1; background: #0f172a; }
+        .task-form button { background: var(--accent-blue); color: #000; font-weight: bold; cursor: pointer; }
+
+        /* Task layout split columns */
+        .task-panel { flex: 1; min-height: 0; }
+        .task-split { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; overflow: hidden; }
+        .task-column { display: flex; flex-direction: column; overflow: hidden; }
+        .task-list { overflow-y: auto; flex: 1; border: 1px dashed #334155; border-radius: 6px; padding: 10px; background: #131c2e; }
+        
+        /* Task Cards */
+        .task-item { background: #273549; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid var(--accent-blue); position: relative; }
+        .task-item.critical { border-left-color: var(--alert-aircraft); background: #311c22; }
+        .task-item.medical { border-left-color: var(--alert-medical); background: #35231a; }
+        .task-desc-block { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; line-height: 1.3; }
+        
+        .task-header { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.9rem; }
+        .task-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+        .assigned-units-list { margin-top: 8px; font-size: 0.75rem; color: var(--accent-blue); display: flex; flex-direction: column; gap: 4px; }
+        .unit-log-tag { background: #0f172a; padding: 6px 8px; border-radius: 4px; display: flex; flex-direction: column; gap: 6px; border: 1px solid #334155; }
+        .unit-tag-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; }
+        .unit-tag-actions { display: flex; gap: 4px; justify-content: flex-end; }
+
+        .dispatch-btn { background-color: var(--accent-blue); color: #000; border: none; cursor: pointer; font-weight: 600; font-size: 0.8rem;}
+        .complete-btn { background-color: var(--status-avail); color: #000; border: none; cursor: pointer; font-weight: 600; font-size: 0.75rem; padding: 2px 6px;}
+        .reassign-btn { background-color: #f97316; color: #000; border: none; cursor: pointer; font-weight: 600; font-size: 0.75rem; padding: 2px 6px;}
+        .cancel-btn { background-color: #ef4444; color: white; border: none; cursor: pointer; font-weight: 600; font-size: 0.75rem; padding: 2px 6px;}
+        .remove-staff-btn { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+        button:hover { filter: brightness(1.2); }
+
+        /* Emergency Grid */
+        .emergency-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .emerg-btn { color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 0.9rem; cursor: pointer; text-transform: uppercase; text-align: center; }
+        .btn-aircraft { background: var(--alert-aircraft); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); }
+        .btn-medical { background: var(--alert-medical); box-shadow: 0 4px 12px rgba(234, 88, 12, 0.3); }
+
+        /* Form Modal Popups */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 100; }
+        .modal-content { background: var(--bg-card); padding: 25px; border-radius: 8px; border: 1px solid #475569; width: 450px; max-height: 90vh; overflow-y: auto; }
+        .form-group { margin-bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+        .form-group input, .form-group select { background: #0f172a; width: 100%; padding: 8px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+        
+        .hidden-row { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>✈️ DALLAS LOVE FIELD <span class="logo-span">| OPERATIONS DISPATCH</span></h1>
+        <div class="clocks-container">
+            <div style="color: var(--accent-blue);">LOCAL: <span id="clock-local">00:00:00</span></div>
+            <div style="color: var(--text-muted);">UTC: <span id="clock-utc">00:00:00</span></div>
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        
+        <div class="left-column">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn-add-officer" onclick="openModal('add-officer-modal')">➕ Add Officer to Shift</button>
+                <button class="btn-save-logs" onclick="exportLogsToTextFile()">📦 Archive & Save Shift Logs</button>
+            </div>
+
+            <div class="card" style="flex: 1;">
+                <div class="card-title">📍 Personnel Awareness Tracker</div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Personnel Name</th>
+                                <th>Role</th>
+                                <th>Vehicle</th>
+                                <th>Status Duty</th>
+                                <th>Current Assignment Logging</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="roster-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-column">
+            <div class="card task-panel">
+                <div class="card-title">📋 Received Tasks & Active Monitoring Logs</div>
+                
+                <div class="task-form">
+                    <input type="text" id="new-task-input" placeholder="Type standard request here...">
+                    <button onclick="addStandardTask()">+ Add Task</button>
+                </div>
+
+                <div class="task-split">
+                    <div class="task-column">
+                        <span style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">⏳ Unassigned Queue</span>
+                        <div class="task-list" id="unassigned-queue"></div>
+                    </div>
+                    <div class="task-column">
+                        <span style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">📡 Active Radio Assignments</span>
+                        <div class="task-list" id="active-log-queue"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title" style="color: var(--status-busy);">🚨 Incident Hot-Keys</div>
+                <div class="emergency-grid">
+                    <button class="emerg-btn btn-aircraft" onclick="openModal('aircraft-modal')">✈️ Aircraft Alert</button>
+                    <button class="emerg-btn btn-medical" onclick="openModal('medical-modal')">🚑 Medical Emergency</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="add-officer-modal">
+        <div class="modal-content">
+            <h3>Add Officer to Active Shift</h3>
+            <div class="form-group" style="margin-top:15px;">
+                <label>Select Personnel</label>
+                <select id="add-officer-select"></select>
+            </div>
+            <div class="modal-actions">
+                <button onclick="closeModal('add-officer-modal')">Cancel</button>
+                <button style="background:var(--accent-blue); color:#000; font-weight:bold;" onclick="submitAddOfficer()">Add to Shift</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="aircraft-modal">
+        <div class="modal-content">
+            <h3>🚨 Aircraft Alert Entry Form</h3>
+            <div class="form-group" style="margin-top:15px;">
+                <label>Alert Level</label>
+                <select id="ac-alert-level">
+                    <option value="Alert I">Alert I</option>
+                    <option value="Alert II">Alert II</option>
+                    <option value="Alert III">Alert III</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Aircraft Callsign / Tail Number</label>
+                <input type="text" id="ac-tail" placeholder="e.g. AAL123">
+            </div>
+            <div class="form-group">
+                <label>Aircraft Type</label>
+                <input type="text" id="ac-type" placeholder="e.g. B738">
+            </div>
+            <div class="form-group">
+                <label>Emergency Situation</label>
+                <input type="text" id="ac-situation" placeholder="e.g. Hydraulic failure">
+            </div>
+            <div class="form-group">
+                <label>Fuel On Board (FOB)</label>
+                <input type="text" id="ac-fob" placeholder="e.g. 15,000 lbs">
+            </div>
+            <div class="form-group">
+                <label>Souls On Board</label>
+                <input type="text" id="ac-souls" placeholder="e.g. 142">
+            </div>
+            <div class="form-group">
+                <label>Landing Runway</label>
+                <select id="ac-rwy">
+                    <option value="13L">13L</option>
+                    <option value="13R">13R</option>
+                    <option value="31L">31L</option>
+                    <option value="31R">31R</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Time Out</label>
+                <input type="text" id="ac-timeout" placeholder="e.g. 14:22Z">
+            </div>
+            <div class="modal-actions">
+                <button onclick="closeModal('aircraft-modal')">Cancel</button>
+                <button style="background:var(--alert-aircraft); font-weight:bold;" onclick="submitAircraftAlert()">Generate Log</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="medical-modal">
+        <div class="modal-content">
+            <h3>🚑 Medical Emergency Entry Form</h3>
+            <div class="form-group" style="margin-top:15px;">
+                <label>Location</label>
+                <input type="text" id="med-location" placeholder="e.g. Terminal 1 Gate A5">
+            </div>
+            <div class="modal-actions">
+                <button onclick="closeModal('medical-modal')">Cancel</button>
+                <button style="background:var(--alert-medical); font-weight:bold;" onclick="submitMedicalEmergency()">Generate Log</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Updated master database array sourced directly from the personnel file 
+        const masterPersonnel = [
+            { name: "Matthew Browning", role: "SAOO" },
+            { name: "Salah Hasoun", role: "SAOO" },
+            { name: "Johnathan Brown", role: "AOO" },
+            { name: "Ben Perry", role: "SAOO" },
+            { name: "Leo Weng", role: "AOO" },
+            { name: "David Curtis", role: "AOO" },
+            { name: "Chase Camacho", role: "AOO" },
+            { name: "Evan Nassaney", role: "SAOO" },
+            { name: "Haden Hoagland", role: "SAOO" },
+            { name: "Malcolm Weston", role: "SAOO" },
+            { name: "Devin McBride", role: "SAOO" },
+            { name: "Lesli Chavez", role: "SAOO" },
+            { name: "Jace Zschiesche", role: "AOO" },
+            { name: "De’Armbri Haynes", role: "SAOO" }
+        ];
+
+        let activeShiftNames = []; 
+        let taskIdCounter = 0;
+        let archivalLogHistory = []; 
+
+        function updateClocks() {
+            const now = new Date();
+            document.getElementById('clock-local').textContent = now.toTimeString().split(' ')[0];
+            document.getElementById('clock-utc').textContent = now.toISOString().slice(11, 19);
+        }
+        setInterval(updateClocks, 1000);
+        updateClocks();
+
+        function getShortTimestamp() {
+            return new Date().toTimeString().split(' ')[0].slice(0, 5);
+        }
+
+        // Dynamically build rows cleanly upon loading to eliminate layout bloat 
+        function initRosterGrid() {
+            const tbody = document.getElementById('roster-body');
+            tbody.innerHTML = '';
+            
+            masterPersonnel.forEach(p => {
+                const safeId = "row-" + p.name.replace(/[^a-zA-Z0-9]/g, '');
+                const badgeClass = p.role === "SAOO" ? "badge-saoo" : "badge-aoo";
+                
+                let vehicleOptions = '<option value="Foot/Standby">No Vehicle</option>';
+                for(let i=1; i<=9; i++) { vehicleOptions += `<option value="OPS${i}">OPS${i}</option>`; }
+                
+                tbody.innerHTML += `
+                    <tr id="${safeId}" class="hidden-row" data-officer="${p.name}">
+                        <td><b>${p.name}</b></td>
+                        <td><span class="badge ${badgeClass}">${p.role}</span></td>
+                        <td><select class="vehicle-select">${vehicleOptions}</select></td>
+                        <td>
+                            <select class="status-select" onchange="updateStatusColor(this)">
+                                <option value="Available">Available</option>
+                                <option value="Busy">Busy</option>
+                                <option value="Inspection">Inspection</option>
+                            </select>
+                        </td>
+                        <td><input type="text" class="assignment-input" placeholder="-- Standby --" style="width: 100%;" readonly></td>
+                        <td><button class="remove-staff-btn" onclick="removeOfficerFromShift('${p.name}')">❌ Remove</button></td>
+                    </tr>
+                `;
+            });
+            document.querySelectorAll('.status-select').forEach(updateStatusColor);
+        }
+
+        function openModal(id) {
+            if(id === 'add-officer-modal') populateAddOfficerDropdown();
+            document.getElementById(id).style.display = 'flex';
+        }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function populateAddOfficerDropdown() {
+            const select = document.getElementById('add-officer-select');
+            select.innerHTML = '';
+            masterPersonnel.forEach(p => {
+                if(!activeShiftNames.includes(p.name)) {
+                    select.innerHTML += `<option value="${p.name}">${p.name} (${p.role})</option>`;
+                }
+            });
+        }
+
+        function submitAddOfficer() {
+            const select = document.getElementById('add-officer-select');
+            const targetName = select.value;
+            if(!targetName) return;
+            
+            activeShiftNames.push(targetName);
+            const safeId = "row-" + targetName.replace(/[^a-zA-Z0-9]/g, '');
+            const row = document.getElementById(safeId);
+            if(row) row.classList.remove('hidden-row');
+            
+            closeModal('add-officer-modal');
+            updateAllTaskDropdowns();
+        }
+
+        function removeOfficerFromShift(name) {
+            activeShiftNames = activeShiftNames.filter(n => n !== name);
+            const safeId = "row-" + name.replace(/[^a-zA-Z0-9]/g, '');
+            const targetRow = document.getElementById(safeId);
+            
+            if(targetRow) {
+                targetRow.classList.add('hidden-row');
+                targetRow.querySelector('.assignment-input').value = '';
+                const statusDropdown = targetRow.querySelector('.status-select');
+                statusDropdown.value = "Available";
+                updateStatusColor(statusDropdown);
+            }
+            updateAllTaskDropdowns();
+        }
+
+        function updateStatusColor(selectElement) {
+            if(selectElement.value === "Available") selectElement.style.color = "var(--status-avail)";
+            if(selectElement.value === "Busy") selectElement.style.color = "var(--status-busy)";
+            if(selectElement.value === "Inspection") selectElement.style.color = "var(--status-inspect)";
+        }
+
+        function updateAllTaskDropdowns() {
+            document.querySelectorAll('.officer-dropdown').forEach(dropdown => {
+                const currentSelection = dropdown.value;
+                dropdown.innerHTML = '<option value="">-- Select Officer --</option>';
+                activeShiftNames.forEach(name => {
+                    dropdown.innerHTML += `<option value="${name}">${name}</option>`;
+                });
+                dropdown.value = currentSelection;
+            });
+        }
+
+        function addStandardTask() {
+            const input = document.getElementById('new-task-input');
+            const text = input.value.trim();
+            if(!text) return;
+            
+            createTaskCard({ title: text, fullDisplay: text, trackerDisplay: text, cssClass: '' });
+            input.value = '';
+        }
+
+        function submitAircraftAlert() {
+            const lvl = document.getElementById('ac-alert-level').value;
+            const tail = document.getElementById('ac-tail').value || 'UNKNOWN TAIL';
+            const type = document.getElementById('ac-type').value || 'N/A';
+            const sit = document.getElementById('ac-situation').value || 'N/A';
+            const fob = document.getElementById('ac-fob').value || 'N/A';
+            const souls = document.getElementById('ac-souls').value || 'N/A';
+            const rwy = document.getElementById('ac-rwy').value;
+            const tout = document.getElementById('ac-timeout').value || 'N/A';
+
+            const fullLog = `
+                <div><strong>Situation:</strong> ${sit}</div>
+                <div><strong>A/C Type:</strong> ${type} | <strong>FOB:</strong> ${fob} | <strong>Souls:</strong> ${souls}</div>
+                <div><strong>Time Out:</strong> ${tout}</div>
+            `;
+
+            createTaskCard({
+                title: `✈️ ${lvl}: ${tail} (RWY ${rwy})`,
+                fullDisplay: fullLog,
+                trackerDisplay: `${lvl}, RWY ${rwy}, ${tail}`,
+                cssClass: 'critical'
+            });
+
+            closeModal('aircraft-modal');
+            ['ac-tail','ac-type','ac-situation','ac-fob','ac-souls','ac-timeout'].forEach(id => document.getElementById(id).value = '');
+        }
+
+        function submitMedicalEmergency() {
+            const loc = document.getElementById('med-location').value || 'Unspecified Location';
+            
+            createTaskCard({
+                title: `🚑 MEDICAL EMERGENCY`,
+                fullDisplay: `<div><strong>Location Area:</strong> ${loc}</div>`,
+                trackerDisplay: loc,
+                cssClass: 'medical'
+            });
+
+            closeModal('medical-modal');
+            document.getElementById('med-location').value = '';
+        }
+
+        function createTaskCard(data) {
+            taskIdCounter++;
+            const item = document.createElement('div');
+            item.className = `task-item ${data.cssClass}`;
+            item.id = `task-${taskIdCounter}`;
+            item.setAttribute('data-tracker-view', data.trackerDisplay);
+            item.setAttribute('data-raw-title', data.title);
+
+            item.innerHTML = `
+                <div class="task-header"><strong>${data.title}</strong></div>
+                <div class="task-desc-block">${data.fullDisplay}</div>
+                <div class="assigned-units-list" id="units-list-${taskIdCounter}"></div>
+                <div class="task-actions" id="actions-${taskIdCounter}" style="margin-top:10px;">
+                    <select class="officer-dropdown" id="select-for-${taskIdCounter}"></select>
+                    <button class="dispatch-btn" onclick="assignTask(${taskIdCounter})">Assign</button>
+                </div>
+            `;
+
+            document.getElementById('unassigned-queue').prepend(item);
+            updateAllTaskDropdowns();
+            
+            archivalLogHistory.push({ 
+                id: taskIdCounter, 
+                title: data.title, 
+                details: data.trackerDisplay, 
+                createdTime: getShortTimestamp(),
+                finalStatus: 'Pending', 
+                endTime: '',
+                timelineEvents: [] 
+            });
+        }
+
+        function assignTask(id) {
+            const selector = document.getElementById(`select-for-${id}`);
+            const selectedOfficer = selector.value;
+            if(!selectedOfficer) return alert("Select an active officer.");
+
+            const taskCard = document.getElementById('task-' + id);
+            const trackerText = taskCard.getAttribute('data-tracker-view');
+            const timeStamp = getShortTimestamp();
+            const formattedAssignmentString = `[${timeStamp}] ${trackerText}`;
+
+            const targetRow = document.querySelector(`#roster-body tr[data-officer="${selectedOfficer}"]`);
+            if (targetRow) {
+                targetRow.querySelector('.assignment-input').value = formattedAssignmentString;
+                const statusDropdown = targetRow.querySelector('.status-select');
+                statusDropdown.value = trackerText.toLowerCase().includes('inspect') ? "Inspection" : "Busy";
+                updateStatusColor(statusDropdown);
+
+                const record = archivalLogHistory.find(item => item.id === id);
+                if(record) {
+                    record.finalStatus = 'Active Execution';
+                    record.timelineEvents.push(`[${timeStamp}] Assigned to ${selectedOfficer}`);
+                }
+
+                const visualList = document.getElementById(`units-list-${id}`);
+                const unitRowId = `tag-${id}-${selectedOfficer.replace(/[^a-zA-Z0-9]/g, '')}`;
+                
+                if(!document.getElementById(unitRowId)) {
+                    visualList.innerHTML += `
+                        <div class="unit-log-tag" id="${unitRowId}">
+                            <div class="unit-tag-header">👤 ${selectedOfficer} <span style="color:var(--text-muted); font-size:0.7rem;">[${timeStamp}]</span></div>
+                            <div class="unit-tag-actions">
+                                <button class="complete-btn" onclick="completeOfficerTask(${id}, '${selectedOfficer}')">Complete</button>
+                                <button class="reassign-btn" onclick="reassignOfficerTask(${id}, '${selectedOfficer}')">Re-assign</button>
+                                <button class="cancel-btn" onclick="cancelOfficerTask(${id}, '${selectedOfficer}')">Cancel</button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const activeContainer = document.getElementById('active-log-queue');
+                if(!activeContainer.contains(taskCard)) {
+                    activeContainer.appendChild(taskCard);
+                }
+                selector.value = "";
+            }
+        }
+
+        function completeOfficerTask(id, officerName) {
+            const timeStamp = getShortTimestamp();
+            resetOfficerRow(officerName);
+            
+            const record = archivalLogHistory.find(item => item.id === id);
+            if(record) record.timelineEvents.push(`[${timeStamp}] Completed by ${officerName}`);
+
+            document.getElementById(`tag-${id}-${officerName.replace(/[^a-zA-Z0-9]/g, '')}`).remove();
+            evaluateCardLifecycle(id, 'Completed');
+        }
+
+        function reassignOfficerTask(id, officerName) {
+            const timeStamp = getShortTimestamp();
+            resetOfficerRow(officerName);
+
+            const record = archivalLogHistory.find(item => item.id === id);
+            if(record) record.timelineEvents.push(`[${timeStamp}] Re-assigned away from ${officerName}`);
+
+            document.getElementById(`tag-${id}-${officerName.replace(/[^a-zA-Z0-9]/g, '')}`).remove();
+            evaluateCardLifecycle(id, 'Re-assigned');
+        }
+
+        function cancelOfficerTask(id, officerName) {
+            const timeStamp = getShortTimestamp();
+            resetOfficerRow(officerName);
+
+            const record = archivalLogHistory.find(item => item.id === id);
+            if(record) record.timelineEvents.push(`[${timeStamp}] Canceled by ${officerName}`);
+
+            document.getElementById(`tag-${id}-${officerName.replace(/[^a-zA-Z0-9]/g, '')}`).remove();
+            evaluateCardLifecycle(id, 'Canceled');
+        }
+
+        function evaluateCardLifecycle(id, actionContext) {
+            const visualList = document.getElementById(`units-list-${id}`);
+            const record = archivalLogHistory.find(item => item.id === id);
+            const timeStamp = getShortTimestamp();
+
+            if(visualList.children.length === 0) {
+                if(actionContext === 'Re-assigned') {
+                    document.getElementById('unassigned-queue').appendChild(document.getElementById(`task-${id}`));
+                    if(record) record.finalStatus = 'Pending Re-assignment';
+                } else {
+                    document.getElementById(`task-${id}`).remove();
+                    if(record) {
+                        record.finalStatus = actionContext;
+                        record.endTime = timeStamp;
+                    }
+                }
+            }
+        }
+
+        function resetOfficerRow(name) {
+            const targetRow = document.querySelector(`#roster-body tr[data-officer="${name}"]`);
+            if(targetRow) {
+                targetRow.querySelector('.assignment-input').value = '';
+                const statusDropdown = targetRow.querySelector('.status-select');
+                statusDropdown.value = "Available";
+                updateStatusColor(statusDropdown);
+            }
+        }
+
+        function exportLogsToTextFile() {
+            if(archivalLogHistory.length === 0) return alert("No operations logs generated during this session to save.");
+
+            let fileContent = `==================================================\n`;
+            fileContent += `DALLAS LOVE FIELD (DAL) - AIRPORT OPERATIONS ARCHIVE\n`;
+            fileContent += `EXPORT DATE/TIME: ${new Date().toString()}\n`;
+            fileContent += `==================================================\n\n`;
+
+            archivalLogHistory.forEach((log, index) => {
+                fileContent += `LOG ENTRY #${index + 1}\n`;
+                fileContent += `• INCIDENT/TASK: ${log.title}\n`;
+                fileContent += `• METRICS LOGGED: ${log.details}\n`;
+                fileContent += `• LOG CREATED:    [${log.createdTime}]\n`;
+                fileContent += `• FINAL STATUS:   ${log.finalStatus.toUpperCase()}\n`;
+                if(log.endTime) fileContent += `• CLOSED TIME:    [${log.endTime}]\n`;
+                
+                if(log.timelineEvents.length > 0) {
+                    fileContent += `• AUDIT TRAIL TIMELINE:\n`;
+                    log.timelineEvents.forEach(evt => {
+                        fileContent += `  └─ ${evt}\n`;
+                    });
+                } else {
+                    fileContent += `• AUDIT TRAIL TIMELINE: No actions taken.\n`;
+                }
+                fileContent += `--------------------------------------------------\n`;
+            });
+
+            const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
+            const temporaryLink = document.createElement("a");
+            temporaryLink.download = `DAL_Operations_AuditLog_${new Date().toISOString().slice(0,10)}.txt`;
+            temporaryLink.href = window.URL.createObjectURL(blob);
+            temporaryLink.style.display = "none";
+            document.body.appendChild(temporaryLink);
+            temporaryLink.click();
+            document.body.removeChild(temporaryLink);
+        }
+
+        window.onload = function() {
+            initRosterGrid();
+        };
+    </script>
+</body>
+</html>
