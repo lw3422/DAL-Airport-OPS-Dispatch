@@ -31,15 +31,31 @@
 
         header {
             background-color: var(--bg-card);
-            padding: 15px 30px;
+            padding: 10px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid #334155;
         }
 
-        h1 { font-size: 1.4rem; letter-spacing: -0.5px; }
-        .logo-span { color: var(--accent-blue); }
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-logo {
+            height: 45px;
+            width: auto;
+        }
+
+        h1 { 
+            font-size: 1.4rem; 
+            letter-spacing: -0.3px; 
+            color: #ffffff; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .logo-span { color: var(--accent-blue); font-weight: 800; }
         .clocks-container { display: flex; gap: 20px; font-family: monospace; font-size: 1.1rem; }
 
         .dashboard-grid {
@@ -85,9 +101,11 @@
         th, td { padding: 10px 8px; border-bottom: 1px solid #334155; font-size: 0.85rem; }
         th { color: var(--text-muted); font-weight: 600; }
 
-        .badge { padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
-        .badge-saoo { background: #6366f1; color: white; }
-        .badge-aoo { background: #0ea5e9; color: white; }
+        .badge { padding: 3px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; color: white; }
+        .badge-saoo { background: #6366f1; }
+        .badge-aoo { background: #0ea5e9; }
+        .badge-trainer { background: #a855f7; }
+        .badge-wildlife { background: #10b981; }
 
         select, input, button {
             background: #1e293b;
@@ -152,7 +170,10 @@
 <body>
 
     <header>
-        <h1>✈️ DALLAS LOVE FIELD <span class="logo-span">| OPERATIONS DISPATCH</span></h1>
+        <div class="header-brand">
+            <img class="header-logo" src="DAL-StarLogo-ICON-White.png" alt="DAL Logo" onerror="this.style.display='none'">
+            <h1>DALLAS LOVE FIELD <span class="logo-span">| OPERATIONS DISPATCH</span></h1>
+        </div>
         <div class="clocks-container">
             <div style="color: var(--accent-blue);">LOCAL: <span id="clock-local">00:00:00</span></div>
             <div style="color: var(--text-muted);">UTC: <span id="clock-utc">00:00:00</span></div>
@@ -164,7 +185,7 @@
         <div class="left-column">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <button class="btn-add-officer" onclick="openModal('add-officer-modal')">➕ Add Officer to Shift</button>
-                <button class="btn-save-logs" onclick="exportLogsToTextFile()">📦 Archive & Save Shift Logs</button>
+                <button class="btn-save-logs" onclick="exportLogsToTextFile()">📦 Export Last 12 Hr Logs</button>
             </div>
 
             <div class="card" style="flex: 1;">
@@ -299,7 +320,6 @@
     </div>
 
     <script>
-        // Updated master database array sourced directly from the personnel file 
         const masterPersonnel = [
             { name: "Matthew Browning", role: "SAOO" },
             { name: "Salah Hasoun", role: "SAOO" },
@@ -314,7 +334,12 @@
             { name: "Devin McBride", role: "SAOO" },
             { name: "Lesli Chavez", role: "SAOO" },
             { name: "Jace Zschiesche", role: "AOO" },
-            { name: "De’Armbri Haynes", role: "SAOO" }
+            { name: "De’Armbri Haynes", role: "SAOO" },
+            { name: "Logan Schmidt", role: "Trainer" },
+            { name: "Deborah Engelhardt", role: "Trainer" },
+            { name: "Carl Franklin", role: "Wildlife" },
+            { name: "Justin Santana", role: "SAOO" },
+            { name: "John Gibson", role: "AOO" }
         ];
 
         let activeShiftNames = []; 
@@ -333,22 +358,25 @@
             return new Date().toTimeString().split(' ')[0].slice(0, 5);
         }
 
-        // Dynamically build rows cleanly upon loading to eliminate layout bloat 
         function initRosterGrid() {
             const tbody = document.getElementById('roster-body');
             tbody.innerHTML = '';
             
             masterPersonnel.forEach(p => {
                 const safeId = "row-" + p.name.replace(/[^a-zA-Z0-9]/g, '');
-                const badgeClass = p.role === "SAOO" ? "badge-saoo" : "badge-aoo";
+                
+                let badgeStyle = "badge-aoo";
+                if (p.role === "SAOO") badgeStyle = "badge-saoo";
+                else if (p.role === "Trainer") badgeStyle = "badge-trainer";
+                else if (p.role === "Wildlife") badgeStyle = "badge-wildlife";
                 
                 let vehicleOptions = '<option value="Foot/Standby">No Vehicle</option>';
-                for(let i=1; i<=9; i++) { vehicleOptions += `<option value="OPS${i}">OPS${i}</option>`; }
+                for(let i=1; i<=10; i++) { vehicleOptions += `<option value="OPS${i}">OPS${i}</option>`; }
                 
                 tbody.innerHTML += `
                     <tr id="${safeId}" class="hidden-row" data-officer="${p.name}">
                         <td><b>${p.name}</b></td>
-                        <td><span class="badge ${badgeClass}">${p.role}</span></td>
+                        <td><span class="badge ${badgeStyle}">${p.role}</span></td>
                         <td><select class="vehicle-select">${vehicleOptions}</select></td>
                         <td>
                             <select class="status-select" onchange="updateStatusColor(this)">
@@ -503,6 +531,7 @@
                 title: data.title, 
                 details: data.trackerDisplay, 
                 createdTime: getShortTimestamp(),
+                absoluteEpochMs: Date.now(), 
                 finalStatus: 'Pending', 
                 endTime: '',
                 timelineEvents: [] 
@@ -619,14 +648,23 @@
         }
 
         function exportLogsToTextFile() {
-            if(archivalLogHistory.length === 0) return alert("No operations logs generated during this session to save.");
+            const currentEpochMs = Date.now();
+            const twelveHoursInMs = 12 * 60 * 60 * 1000;
+            const absoluteCutoffMs = currentEpochMs - twelveHoursInMs;
+
+            const filteredLogs = archivalLogHistory.filter(log => log.absoluteEpochMs >= absoluteCutoffMs);
+
+            if(filteredLogs.length === 0) {
+                return alert("No operations logs found within the past 12 hours to export.");
+            }
 
             let fileContent = `==================================================\n`;
             fileContent += `DALLAS LOVE FIELD (DAL) - AIRPORT OPERATIONS ARCHIVE\n`;
-            fileContent += `EXPORT DATE/TIME: ${new Date().toString()}\n`;
+            fileContent += `ROLLING AUDIT RANGE: PAST 12 HOURS ONLY\n`;
+            fileContent += `EXPORT TIME: ${new Date().toString()}\n`;
             fileContent += `==================================================\n\n`;
 
-            archivalLogHistory.forEach((log, index) => {
+            filteredLogs.forEach((log, index) => {
                 fileContent += `LOG ENTRY #${index + 1}\n`;
                 fileContent += `• INCIDENT/TASK: ${log.title}\n`;
                 fileContent += `• METRICS LOGGED: ${log.details}\n`;
@@ -647,7 +685,7 @@
 
             const blob = new Blob([fileContent], { type: "text/plain;charset=utf-8" });
             const temporaryLink = document.createElement("a");
-            temporaryLink.download = `DAL_Operations_AuditLog_${new Date().toISOString().slice(0,10)}.txt`;
+            temporaryLink.download = `DAL_12Hr_Operations_Log_${new Date().toISOString().slice(0,10)}.txt`;
             temporaryLink.href = window.URL.createObjectURL(blob);
             temporaryLink.style.display = "none";
             document.body.appendChild(temporaryLink);
